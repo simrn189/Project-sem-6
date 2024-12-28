@@ -1,0 +1,60 @@
+// 1. Backend: Express.js API
+// File: server.js
+
+const express = require('express');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const { fetchWeatherData, predictSolarProduction } = require('./mlService');
+
+const app = express();
+const PORT = 5000;
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+
+// MongoDB Connection
+mongoose.connect('mongodb://localhost:27017/solarForecast', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+
+const panelSchema = new mongoose.Schema({
+  location: String,
+  panelSpecs: Object,
+  predictions: Array,
+});
+
+const Panel = mongoose.model('Panel', panelSchema);
+
+// Routes
+app.post('/api/forecast', async (req, res) => {
+  const { location, panelSpecs } = req.body;
+  try {
+    const weatherData = await fetchWeatherData(location);
+    const prediction = predictSolarProduction(weatherData, panelSpecs);
+
+    const newForecast = new Panel({
+      location,
+      panelSpecs,
+      predictions: prediction,
+    });
+
+    await newForecast.save();
+    res.json(newForecast);
+  } catch (error) {
+    res.status(500).json({ error: 'Error fetching data or making predictions.' });
+  }
+});
+
+app.get('/api/history', async (req, res) => {
+  try {
+    const history = await Panel.find();
+    res.json(history);
+  } catch (error) {
+    res.status(500).json({ error: 'Error fetching historical data.' });
+  }
+});
+
+app.listen(PORT, () => console.log(Server running on http://localhost:${PORT}));
